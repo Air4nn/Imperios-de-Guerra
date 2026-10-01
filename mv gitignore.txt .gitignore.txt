@@ -1,0 +1,64 @@
+# Carpetas generadas por Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Los .meta solo se ignoran cuando su asset tambien se ignora
+!/[Aa]ssets/**/*.meta
+
+# Visual Studio / Rider
+.vs/
+.idea/
+[Aa]ssets/Plugins/Editor/JetBrains*
+
+# Gradle
+.gradle/
+
+# Archivos de solucion y proyecto autogenerados
+ExportedObj/
+.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Metadatos autogenerados
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Reportes de fallos
+sysinfo.txt
+
+# Compilados y paquetes
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+crashlytics-build.properties
+
+# Addressables
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

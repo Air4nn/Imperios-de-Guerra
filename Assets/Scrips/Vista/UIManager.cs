@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using ImperiosEnGuerra.Modelo;
+using ImperiosEnGuerra.Servicios;
  
 namespace ImperiosEnGuerra.Vista
 {
@@ -13,7 +14,7 @@ namespace ImperiosEnGuerra.Vista
  
         private void Start()
         {
-            interaccion = FindFirstObjectByType<InteraccionMapa>();
+            interaccion = FindAnyObjectByType<InteraccionMapa>();
         }
  
         private void Update()
@@ -21,8 +22,8 @@ namespace ImperiosEnGuerra.Vista
             if (GameManager.Instancia == null || informacion == null)
                 return;
  
-            Partida partida =
-                GameManager.Instancia.Controller.Partida;
+            var controller = GameManager.Instancia.Controller;
+            Partida partida = controller.Partida;
  
             string texto = "<b>IMPERIOS EN GUERRA</b>\n\n";
  
@@ -32,14 +33,14 @@ namespace ImperiosEnGuerra.Vista
  
                 texto += "<size=140%><b>" +
                     (ganador != null
-                        ? "GANO " + ganador.Nombre.ToUpper()
+                        ? "GANÓ " + ganador.Nombre.ToUpper()
                         : "EMPATE") +
                     "</b></size>\n\n";
             }
             else if (interaccion != null)
             {
-                texto += "Controlas: <b>Jugador " +
-                    interaccion.JugadorActual + "</b>\n";
+                texto += "Controlas: <b>Jugador " + interaccion.JugadorActual + "</b>" +
+                    "   Modo: <b>" + interaccion.Modo + "</b>\n";
  
                 if (interaccion.Seleccionada != null &&
                     interaccion.Seleccionada.EstaViva())
@@ -53,14 +54,7 @@ namespace ImperiosEnGuerra.Vista
  
             texto += ResumenJugador("#4D80FF", partida.Jugador1);
             texto += ResumenJugador("#FF4D4D", partida.Jugador2);
- 
-            texto +=
-                "CONTROLES\n" +
-                "Tab = Cambiar de jugador\n" +
-                "Click izq = Seleccionar / Mover\n" +
-                "Click der = Atacar (desde una celda contigua)\n" +
-                "C = Construir casa (bajo el mouse)\n" +
-                "S = Entrenar soldado";
+            texto += TextoTareas(controller);
  
             informacion.text = texto;
         }
@@ -83,6 +77,31 @@ namespace ImperiosEnGuerra.Vista
                 "Unidades: " + unidadesVivas +
                 "   Edificios: " + edificiosEnPie +
                 "\n\n";
+        }
+ 
+        // Avance en tiempo real de las tareas que corren en hilos de fondo.
+        private string TextoTareas(ImperiosEnGuerra.Controlador.JuegoController controller)
+        {
+            string texto = "";
+ 
+            foreach (TareaProgreso tarea in controller.TareasEnCurso)
+            {
+                if (tarea.Total <= 0)
+                    continue;
+ 
+                int llenos = Mathf.Clamp(
+                    Mathf.RoundToInt((float)(10 * tarea.Transcurrido / tarea.Total)), 0, 10);
+ 
+                texto +=
+                    "J" + tarea.JugadorId + " " + tarea.Descripcion +
+                    " [" + new string('#', llenos) + new string('-', 10 - llenos) + "] " +
+                    tarea.Transcurrido.ToString("0.0") + "/" + tarea.Total + " s\n";
+            }
+ 
+            if (texto.Length == 0)
+                return "";
+ 
+            return "<b>TAREAS EN CURSO</b>\n" + texto;
         }
     }
 }

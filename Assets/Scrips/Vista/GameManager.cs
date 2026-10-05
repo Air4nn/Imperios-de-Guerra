@@ -1,15 +1,14 @@
 using UnityEngine;
-using ImperiosEnGuerra.Modelo;
 using ImperiosEnGuerra.Controlador;
-
+ 
 namespace ImperiosEnGuerra.Vista
 {
     public class GameManager : MonoBehaviour
     {
         public static GameManager Instancia { get; private set; }
-
+ 
         public JuegoController Controller { get; private set; }
-
+ 
         private void Awake()
         {
             if (Instancia != null && Instancia != this)
@@ -17,45 +16,30 @@ namespace ImperiosEnGuerra.Vista
                 Destroy(gameObject);
                 return;
             }
-
+ 
             Instancia = this;
-
+ 
             Controller = new JuegoController();
-
-            CrearUnidadInicial(
-                Controller.Partida.Jugador1,
-                2,
-                2
-            );
-
-            CrearUnidadInicial(
-                Controller.Partida.Jugador2,
-                12,
-                12
-            );
+ 
+            // El Controlador crea las unidades iniciales y guarda configuracion.txt.
+            Controller.IniciarPartida();
         }
-
-        private void CrearUnidadInicial(
-            Jugador jugador,
-            int x,
-            int y)
+ 
+        private void Update()
         {
-            if (!Controller.Partida.Mapa.EstaLibre(x, y))
-                return;
-
-            Unidad unidad = new Unidad(
-                Controller.Partida.SiguienteIdUnidad++,
-                TipoUnidad.Soldado,
-                100,
-                25,
-                x,
-                y,
-                jugador.Id
-            );
-
-            jugador.AgregarUnidad(unidad);
-
-            Controller.Partida.Mapa.Ocupar(x, y);
+            // Ejecuta en el hilo principal lo que los hilos de fondo dejaron en la cola.
+            if (Controller != null)
+                Controller.ProcesarPendientes();
+        }
+ 
+        private void OnDestroy()
+        {
+            if (Instancia == this)
+            {
+                // Finaliza correctamente los hilos de fondo.
+                Controller.Detener();
+                Instancia = null;
+            }
         }
     }
 }

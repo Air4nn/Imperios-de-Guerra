@@ -1,0 +1,42 @@
+# Carpetas generadas por Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Los .meta solo se ignoran cuando su asset tambien se ignora
+!/[Aa]ssets/**/*.meta
+
+# Editores
+.vs/
+.vscode/
+.idea/
+
+# Archivos de solucion y proyecto autogenerados
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Compilados y paquetes
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

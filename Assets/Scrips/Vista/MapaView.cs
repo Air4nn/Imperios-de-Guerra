@@ -226,11 +226,20 @@ namespace ImperiosEnGuerra.Vista
                 GameObject objeto =
                     unidadesVisuales[unidad.Id];
  
-                objeto.transform.position =
+                // El hilo de movimiento avanza una celda cada 0,4 s;
+                // la vista se desliza suavemente hacia esa celda.
+                Vector3 destino =
                     new Vector3(
                         unidad.X,
                         0.8f,
                         unidad.Y
+                    );
+ 
+                objeto.transform.position =
+                    Vector3.MoveTowards(
+                        objeto.transform.position,
+                        destino,
+                        5f * Time.deltaTime
                     );
  
                 // La unidad seleccionada se ve en amarillo.

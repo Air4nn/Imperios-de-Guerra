@@ -9,6 +9,9 @@ namespace ImperiosEnGuerra.Modelo
         public Dictionary<TipoRecurso, int> Recursos { get; set; }
         public List<Unidad> Unidades { get; set; }
         public List<Edificio> Edificios { get; set; }
+        public int EnEntrenamiento { get; set; }
+        public int ContadorUnidades { get; set; }
+        public int ContadorEdificios { get; set; }
 
         public Jugador(int id, string nombre)
         {

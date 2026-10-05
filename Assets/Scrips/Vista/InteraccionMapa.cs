@@ -1,17 +1,28 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using ImperiosEnGuerra.Modelo;
  
 namespace ImperiosEnGuerra.Vista
 {
+    public enum ModoAccion
+    {
+        Mover = 0,
+        Construir = 1,
+        Atacar = 2
+    }
+ 
     public class InteraccionMapa : MonoBehaviour
     {
         private Camera camara;
  
-        // Jugador que esta controlando el teclado/mouse (Tab lo cambia).
+        // Jugador que controla el teclado/mouse (Tab o el botón lo cambia).
         public int JugadorActual { get; private set; } = 1;
  
         // Unidad seleccionada del jugador actual.
         public Unidad Seleccionada { get; private set; }
+ 
+        // Acción que se ejecutará con el próximo click izquierdo sobre el mapa.
+        public ModoAccion Modo { get; private set; } = ModoAccion.Mover;
  
         private void Start()
         {
@@ -26,30 +37,24 @@ namespace ImperiosEnGuerra.Vista
             if (GameManager.Instancia.Controller.Partida.Finalizada)
                 return;
  
-            if (Input.GetKeyDown(KeyCode.Tab))
-            {
-                CambiarJugador();
-            }
+            // Atajos de teclado (equivalen a los botones).
+            if (Input.GetKeyDown(KeyCode.Tab)) CambiarJugador();
+            if (Input.GetKeyDown(KeyCode.M)) EstablecerModo(ModoAccion.Mover);
+            if (Input.GetKeyDown(KeyCode.C)) EstablecerModo(ModoAccion.Construir);
+            if (Input.GetKeyDown(KeyCode.A)) EstablecerModo(ModoAccion.Atacar);
+            if (Input.GetKeyDown(KeyCode.S)) Entrenar();
+            if (Input.GetKeyDown(KeyCode.R)) Recolectar();
  
-            if (Input.GetKeyDown(KeyCode.C))
-            {
-                Construir();
-            }
+            // Un click sobre un botón o sobre el panel no debe actuar sobre el mapa.
+            bool sobreUI =
+                EventSystem.current != null &&
+                EventSystem.current.IsPointerOverGameObject();
  
-            if (Input.GetKeyDown(KeyCode.S))
-            {
-                Entrenar();
-            }
+            if (sobreUI)
+                return;
  
-            if (Input.GetMouseButtonDown(0))
-            {
-                ClickIzquierdo();
-            }
- 
-            if (Input.GetMouseButtonDown(1))
-            {
-                ClickDerecho();
-            }
+            if (Input.GetMouseButtonDown(0)) ClickIzquierdo();
+            if (Input.GetMouseButtonDown(1)) ClickDerecho();
         }
  
         private Jugador Actual
@@ -70,13 +75,60 @@ namespace ImperiosEnGuerra.Vista
             }
         }
  
-        private void CambiarJugador()
+        // ---------- Acciones que también usan los botones ----------
+ 
+        public void CambiarJugador()
         {
             JugadorActual = JugadorActual == 1 ? 2 : 1;
             Seleccionada = null;
+            Modo = ModoAccion.Mover;
+ 
+            GameManager.Instancia.Controller.Aviso("Ahora controlas al Jugador " + JugadorActual);
         }
  
-        // Convierte la posicion del mouse en una celda (x, y) del mapa.
+        public void EstablecerModo(ModoAccion modo)
+        {
+            Modo = modo;
+ 
+            string ayuda;
+ 
+            switch (modo)
+            {
+                case ModoAccion.Construir:
+                    ayuda = "Construir: haz click en una celda libre";
+                    break;
+                case ModoAccion.Atacar:
+                    ayuda = "Atacar: haz click en un enemigo (desde una celda contigua)";
+                    break;
+                default:
+                    ayuda = "Mover: haz click en el destino de la unidad seleccionada";
+                    break;
+            }
+ 
+            GameManager.Instancia.Controller.Aviso(ayuda);
+        }
+ 
+        // Entrena un soldado del jugador actual junto a su Centro Urbano.
+        public void Entrenar()
+        {
+            GameManager.Instancia.Controller.Entrenar(Actual);
+        }
+ 
+        // La unidad seleccionada recolecta 10 segundos en un hilo aparte.
+        public void Recolectar()
+        {
+            if (!AsegurarSeleccion())
+            {
+                GameManager.Instancia.Controller.Aviso("No tienes unidades disponibles");
+                return;
+            }
+ 
+            GameManager.Instancia.Controller.RecolectarAutomatico(Seleccionada, 10);
+        }
+ 
+        // ---------- Auxiliares ----------
+ 
+        // Convierte la posición del mouse en una celda (x, y) del mapa.
         private bool ObtenerCeldaBajoMouse(out int x, out int y)
         {
             x = 0;
@@ -101,7 +153,7 @@ namespace ImperiosEnGuerra.Vista
                 u => u.EstaViva() && u.X == x && u.Y == y);
         }
  
-        // Si no hay unidad valida seleccionada, toma la primera viva del jugador actual.
+        // Si no hay unidad válida seleccionada, toma la primera viva del jugador actual.
         private bool AsegurarSeleccion()
         {
             if (Seleccionada == null ||
@@ -114,26 +166,15 @@ namespace ImperiosEnGuerra.Vista
             return Seleccionada != null;
         }
  
-        // C: construye una casa del jugador actual en la celda bajo el mouse.
-        private void Construir()
-        {
-            if (!ObtenerCeldaBajoMouse(out int x, out int y))
-                return;
+        // ---------- Clicks sobre el mapa ----------
  
-            GameManager.Instancia.Controller.Construir(Actual, x, y);
-        }
- 
-        // S: entrena un soldado del jugador actual junto a su Centro Urbano.
-        private void Entrenar()
-        {
-            GameManager.Instancia.Controller.Entrenar(Actual);
-        }
- 
-        // Click izquierdo: selecciona una unidad propia o mueve la seleccionada.
+        // Click izquierdo: selecciona una unidad propia o ejecuta el modo activo.
         private void ClickIzquierdo()
         {
             if (!ObtenerCeldaBajoMouse(out int x, out int y))
                 return;
+ 
+            var controller = GameManager.Instancia.Controller;
  
             Unidad propia = BuscarUnidadVivaEn(Actual, x, y);
  
@@ -143,22 +184,45 @@ namespace ImperiosEnGuerra.Vista
                 return;
             }
  
-            if (!AsegurarSeleccion())
-                return;
+            switch (Modo)
+            {
+                case ModoAccion.Construir:
+                    controller.Construir(Actual, x, y);
+                    Modo = ModoAccion.Mover;
+                    break;
  
-            GameManager.Instancia.Controller.Mover(Seleccionada, x, y);
+                case ModoAccion.Atacar:
+                    Atacar(x, y);
+                    break;
+ 
+                default:
+                    if (AsegurarSeleccion())
+                        controller.Mover(Seleccionada, x, y);
+                    else
+                        controller.Aviso("No tienes unidades disponibles");
+                    break;
+            }
         }
  
-        // Click derecho: ataca la unidad o el edificio enemigo de esa celda.
+        // Click derecho: ataque rápido en cualquier modo.
         private void ClickDerecho()
         {
             if (!ObtenerCeldaBajoMouse(out int x, out int y))
                 return;
  
-            if (!AsegurarSeleccion())
-                return;
+            Atacar(x, y);
+        }
  
+        // Ataca la unidad o el edificio enemigo que haya en la celda (x, y).
+        private void Atacar(int x, int y)
+        {
             var controller = GameManager.Instancia.Controller;
+ 
+            if (!AsegurarSeleccion())
+            {
+                controller.Aviso("No tienes unidades disponibles");
+                return;
+            }
  
             Unidad enemiga = BuscarUnidadVivaEn(Rival, x, y);
  
@@ -174,7 +238,10 @@ namespace ImperiosEnGuerra.Vista
             if (edificio != null)
             {
                 controller.AtacarEdificio(Seleccionada, edificio);
+                return;
             }
+ 
+            controller.Aviso("No hay un enemigo en esa celda");
         }
     }
 }

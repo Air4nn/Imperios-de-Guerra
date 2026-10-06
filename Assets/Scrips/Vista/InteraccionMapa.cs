@@ -15,8 +15,18 @@ namespace ImperiosEnGuerra.Vista
     {
         private Camera camara;
  
-        // Jugador que controla el teclado/mouse (Tab o el botón lo cambia).
-        public int JugadorActual { get; private set; } = 1;
+        // Solo para el modo local (Tab alterna entre los dos jugadores).
+        private int jugadorLocal = 1;
+ 
+        // Jugador que controla esta instancia: en red es fijo, en local lo cambia Tab.
+        public int JugadorActual
+        {
+            get
+            {
+                var controller = GameManager.Instancia.Controller;
+                return controller.EnRed ? controller.JugadorLocalId : jugadorLocal;
+            }
+        }
  
         // Unidad seleccionada del jugador actual.
         public Unidad Seleccionada { get; private set; }
@@ -34,7 +44,10 @@ namespace ImperiosEnGuerra.Vista
             if (GameManager.Instancia == null)
                 return;
  
-            if (GameManager.Instancia.Controller.Partida.Finalizada)
+            var controller = GameManager.Instancia.Controller;
+ 
+            // Bloqueado mientras se elige el modo, se espera al oponente o la partida terminó.
+            if (!controller.PuedeJugar || controller.Partida.Finalizada)
                 return;
  
             // Atajos de teclado (equivalen a los botones).
@@ -79,11 +92,19 @@ namespace ImperiosEnGuerra.Vista
  
         public void CambiarJugador()
         {
-            JugadorActual = JugadorActual == 1 ? 2 : 1;
+            var controller = GameManager.Instancia.Controller;
+ 
+            if (controller.EnRed)
+            {
+                controller.Aviso("En red cada instancia controla un solo jugador");
+                return;
+            }
+ 
+            jugadorLocal = jugadorLocal == 1 ? 2 : 1;
             Seleccionada = null;
             Modo = ModoAccion.Mover;
  
-            GameManager.Instancia.Controller.Aviso("Ahora controlas al Jugador " + JugadorActual);
+            controller.Aviso("Ahora controlas al Jugador " + jugadorLocal);
         }
  
         public void EstablecerModo(ModoAccion modo)

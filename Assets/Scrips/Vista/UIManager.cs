@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using ImperiosEnGuerra.Controlador;
 using ImperiosEnGuerra.Modelo;
 using ImperiosEnGuerra.Servicios;
  
@@ -22,12 +23,22 @@ namespace ImperiosEnGuerra.Vista
             if (GameManager.Instancia == null || informacion == null)
                 return;
  
-            var controller = GameManager.Instancia.Controller;
+            JuegoController controller = GameManager.Instancia.Controller;
             Partida partida = controller.Partida;
  
-            string texto = "<b>IMPERIOS EN GUERRA</b>\n\n";
+            string texto = "<b>IMPERIOS EN GUERRA</b>\n";
  
-            if (partida.Finalizada)
+            if (controller.EnRed)
+                texto += "Red: " + controller.EstadoRedTexto + "\n";
+ 
+            texto += "\n";
+ 
+            if (controller.ConexionPerdida)
+            {
+                texto += "<size=140%><b>CONEXIÓN PERDIDA</b></size>\n" +
+                    "La partida se interrumpió.\n\n";
+            }
+            else if (partida.Finalizada)
             {
                 Jugador ganador = partida.ObtenerGanador();
  
@@ -37,7 +48,7 @@ namespace ImperiosEnGuerra.Vista
                         : "EMPATE") +
                     "</b></size>\n\n";
             }
-            else if (interaccion != null)
+            else if (interaccion != null && controller.PuedeJugar)
             {
                 texto += "Controlas: <b>Jugador " + interaccion.JugadorActual + "</b>" +
                     "   Modo: <b>" + interaccion.Modo + "</b>\n";
@@ -80,7 +91,7 @@ namespace ImperiosEnGuerra.Vista
         }
  
         // Avance en tiempo real de las tareas que corren en hilos de fondo.
-        private string TextoTareas(ImperiosEnGuerra.Controlador.JuegoController controller)
+        private string TextoTareas(JuegoController controller)
         {
             string texto = "";
  

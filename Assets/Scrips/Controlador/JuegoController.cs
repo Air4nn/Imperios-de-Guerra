@@ -21,6 +21,32 @@ namespace ImperiosEnGuerra.Controlador
         // Mensajes para el jugador. Los hilos de fondo los encolan y la vista los lee.
         public ConcurrentQueue<string> Mensajes { get; private set; }
  
+        // ---------- Estado de red ----------
+ 
+        public RedService Red { get; private set; }
+ 
+        // true si la partida se juega entre dos instancias conectadas.
+        public bool EnRed { get; private set; }
+ 
+        // Jugador que controla esta instancia en red (anfitrión = 1, cliente = 2).
+        public int JugadorLocalId { get; private set; }
+ 
+        // false mientras se elige el modo de juego o se espera al oponente.
+        public bool PuedeJugar { get; private set; }
+ 
+        public bool ConexionPerdida { get; private set; }
+ 
+        public string UltimoErrorRed { get; private set; }
+ 
+        public string EstadoRedTexto
+        {
+            get
+            {
+                if (!EnRed || Red == null) return "Local";
+                return Red.Estado + " (eres el Jugador " + JugadorLocalId + ")";
+            }
+        }
+ 
         // Trabajo que los hilos de fondo piden ejecutar en el hilo principal de Unity.
         private readonly ConcurrentQueue<Action> pendientes = new ConcurrentQueue<Action>();
  
@@ -29,6 +55,8 @@ namespace ImperiosEnGuerra.Controlador
         public JuegoController()
         {
             Mensajes = new ConcurrentQueue<string>();
+ 
+            JugadorLocalId = 1;
  
             Partida = new Partida();
  
@@ -61,9 +89,60 @@ namespace ImperiosEnGuerra.Controlador
         public void Detener()
         {
             Concurrencia.Detener();
+ 
+            if (Red != null)
+                Red.Detener();
         }
  
-        // ---------- Cola hacia el hilo principal ----------
+        // ---------- Modos de juego ----------
+ 
+        public void IniciarModoLocal()
+        {
+            EnRed = false;
+            PuedeJugar = true;
+ 
+            Registrar(0, "Modo de juego", "Partida local de dos jugadores en un mismo equipo");
+        }
+ 
+        public void IniciarComoAnfitrion(int puerto)
+        {
+            PrepararRed(1);
+            Red.IniciarAnfitrion(puerto);
+        }
+ 
+        public void IniciarComoCliente(string ip, int puerto)
+        {
+            PrepararRed(2);
+            Red.IniciarCliente(ip, puerto);
+        }
+ 
+        public void CancelarRed()
+        {
+            if (Red != null)
+            {
+                Red.Detener();
+                Red = null;
+            }
+ 
+            EnRed = false;
+            PuedeJugar = false;
+            JugadorLocalId = 1;
+            UltimoErrorRed = null;
+        }
+ 
+        private void PrepararRed(int jugadorLocal)
+        {
+            if (Red != null)
+                Red.Detener();
+ 
+            Red = new RedService();
+            EnRed = true;
+            JugadorLocalId = jugadorLocal;
+            PuedeJugar = false;
+            UltimoErrorRed = null;
+        }
+ 
+        // ---------- Cola hacia el hilo principal y red ----------
  
         private void EncolarHiloPrincipal(Action accion)
         {
@@ -85,6 +164,143 @@ namespace ImperiosEnGuerra.Controlador
                 {
                     Archivos.RegistrarEvento("Error en tarea pendiente: " + ex.Message);
                 }
+            }
+ 
+            ProcesarRed();
+        }
+ 
+        private void ProcesarRed()
+        {
+            if (Red == null)
+                return;
+ 
+            string evento;
+ 
+            while (Red.TryLeerEvento(out evento))
+            {
+                if (evento == "Conectado")
+                {
+                    PuedeJugar = true;
+                    Registrar(0, "Red", "Conexión establecida, controlas al Jugador " + JugadorLocalId);
+                }
+                else if (evento == "Desconectado")
+                {
+                    ManejarDesconexion();
+                }
+                else
+                {
+                    if (evento.StartsWith("Error"))
+                        UltimoErrorRed = evento;
+ 
+                    Registrar(0, "Red", evento);
+                }
+            }
+ 
+            MensajeRed mensaje;
+ 
+            while (Red != null && Red.TryLeerMensaje(out mensaje))
+            {
+                AplicarMensajeRemoto(mensaje);
+            }
+        }
+ 
+        private void ManejarDesconexion()
+        {
+            if (Partida.Finalizada || ConexionPerdida)
+                return;
+ 
+            ConexionPerdida = true;
+            PuedeJugar = false;
+ 
+            Registrar(0, "Red", "Se perdió la conexión con el oponente; la partida se interrumpe");
+ 
+            Concurrencia.Detener();
+ 
+            if (!resultadoGuardado)
+            {
+                resultadoGuardado = true;
+                Archivos.GuardarResultadoFinal(GenerarTextoResultado(null));
+            }
+        }
+ 
+        private void EnviarRed(MensajeRed mensaje)
+        {
+            if (EnRed && Red != null)
+                Red.Enviar(mensaje);
+        }
+ 
+        // Aplica una acción del oponente sobre el modelo local (sin volver a enviarla).
+        private void AplicarMensajeRemoto(MensajeRed mensaje)
+        {
+            int remoto = JugadorLocalId == 1 ? 2 : 1;
+ 
+            if (mensaje.JugadorId != remoto)
+            {
+                Registrar(0, "Red", "Mensaje descartado: jugador inesperado");
+                return;
+            }
+ 
+            Jugador jugador = Partida.ObtenerJugador(remoto);
+ 
+            switch (mensaje.Tipo)
+            {
+                case MensajeRed.Construir:
+                    EjecutarConstruir(jugador, mensaje.X, mensaje.Y);
+                    break;
+ 
+                case MensajeRed.Entrenar:
+                    EjecutarEntrenar(jugador, mensaje.X, mensaje.Y);
+                    break;
+ 
+                case MensajeRed.Mover:
+                {
+                    Unidad unidad = Partida.BuscarUnidad(mensaje.UnidadId);
+ 
+                    if (unidad != null && unidad.JugadorId == remoto)
+                        EjecutarMover(unidad, mensaje.X, mensaje.Y);
+ 
+                    break;
+                }
+ 
+                case MensajeRed.Atacar:
+                {
+                    Unidad atacante = Partida.BuscarUnidad(mensaje.UnidadId);
+ 
+                    if (atacante == null || atacante.JugadorId != remoto)
+                        break;
+ 
+                    // El oponente ya validó el rango en su equipo: aquí se confía en su acción.
+                    if (mensaje.ObjetivoEsEdificio)
+                    {
+                        Edificio edificio = Partida.BuscarEdificio(mensaje.ObjetivoId);
+ 
+                        if (edificio != null)
+                            EjecutarAtaqueEdificio(atacante, edificio, false);
+                    }
+                    else
+                    {
+                        Unidad objetivo = Partida.BuscarUnidad(mensaje.ObjetivoId);
+ 
+                        if (objetivo != null)
+                            EjecutarAtaqueUnidad(atacante, objetivo, false);
+                    }
+ 
+                    break;
+                }
+ 
+                case MensajeRed.Recolectar:
+                {
+                    Unidad unidad = Partida.BuscarUnidad(mensaje.UnidadId);
+ 
+                    if (unidad != null && unidad.JugadorId == remoto)
+                        EjecutarRecolectar(unidad, Math.Max(1, Math.Min(mensaje.Segundos, 60)));
+ 
+                    break;
+                }
+ 
+                default:
+                    Registrar(0, "Red", "Mensaje desconocido ignorado: " + mensaje.Tipo);
+                    break;
             }
         }
  
@@ -111,9 +327,145 @@ namespace ImperiosEnGuerra.Controlador
             Mensajes.Enqueue(texto);
         }
  
-        // ---------- Acciones del jugador ----------
+        // ---------- Acciones del jugador local (se validan, se ejecutan y se envían) ----------
+ 
+        // En red, cada instancia solo puede actuar con su propio jugador.
+        private bool PuedeActuar(int jugadorId)
+        {
+            if (!PuedeJugar || Partida.Finalizada) return false;
+            if (EnRed && jugadorId != JugadorLocalId) return false;
+            return true;
+        }
  
         public bool Construir(Jugador jugador, int x, int y)
+        {
+            if (!PuedeActuar(jugador.Id)) return false;
+ 
+            bool ok = EjecutarConstruir(jugador, x, y);
+ 
+            if (ok)
+                EnviarRed(new MensajeRed
+                {
+                    Tipo = MensajeRed.Construir,
+                    JugadorId = jugador.Id,
+                    X = x,
+                    Y = y
+                });
+ 
+            return ok;
+        }
+ 
+        public bool Entrenar(Jugador jugador)
+        {
+            if (!PuedeActuar(jugador.Id)) return false;
+ 
+            int x, y;
+ 
+            if (!BuscarCeldaLibreCercaDelCentro(jugador, out x, out y))
+                return Rechazar(jugador.Id, "Entrenar soldado",
+                    "no hay espacio libre junto al Centro Urbano");
+ 
+            bool ok = EjecutarEntrenar(jugador, x, y);
+ 
+            // Se envía la celda elegida para que el oponente cree el soldado en el mismo sitio.
+            if (ok)
+                EnviarRed(new MensajeRed
+                {
+                    Tipo = MensajeRed.Entrenar,
+                    JugadorId = jugador.Id,
+                    X = x,
+                    Y = y
+                });
+ 
+            return ok;
+        }
+ 
+        public bool Mover(Unidad unidad, int x, int y)
+        {
+            if (!PuedeActuar(unidad.JugadorId)) return false;
+ 
+            bool ok = EjecutarMover(unidad, x, y);
+ 
+            if (ok)
+                EnviarRed(new MensajeRed
+                {
+                    Tipo = MensajeRed.Mover,
+                    JugadorId = unidad.JugadorId,
+                    UnidadId = unidad.Id,
+                    X = x,
+                    Y = y
+                });
+ 
+            return ok;
+        }
+ 
+        // Ataque cuerpo a cuerpo: el atacante debe estar en una celda contigua.
+        public bool AtacarUnidad(Unidad atacante, Unidad objetivo)
+        {
+            if (!PuedeActuar(atacante.JugadorId)) return false;
+ 
+            bool ok = EjecutarAtaqueUnidad(atacante, objetivo, true);
+ 
+            if (ok)
+                EnviarRed(new MensajeRed
+                {
+                    Tipo = MensajeRed.Atacar,
+                    JugadorId = atacante.JugadorId,
+                    UnidadId = atacante.Id,
+                    ObjetivoId = objetivo.Id,
+                    ObjetivoEsEdificio = false
+                });
+ 
+            return ok;
+        }
+ 
+        public bool AtacarEdificio(Unidad atacante, Edificio objetivo)
+        {
+            if (!PuedeActuar(atacante.JugadorId)) return false;
+ 
+            bool ok = EjecutarAtaqueEdificio(atacante, objetivo, true);
+ 
+            if (ok)
+                EnviarRed(new MensajeRed
+                {
+                    Tipo = MensajeRed.Atacar,
+                    JugadorId = atacante.JugadorId,
+                    UnidadId = atacante.Id,
+                    ObjetivoId = objetivo.Id,
+                    ObjetivoEsEdificio = true
+                });
+ 
+            return ok;
+        }
+ 
+        // Recolección en segundo plano: la unidad debe estar sobre una celda con recurso.
+        public bool RecolectarAutomatico(Unidad unidad, int segundos)
+        {
+            if (!PuedeActuar(unidad.JugadorId)) return false;
+ 
+            bool ok = EjecutarRecolectar(unidad, segundos);
+ 
+            if (ok)
+                EnviarRed(new MensajeRed
+                {
+                    Tipo = MensajeRed.Recolectar,
+                    JugadorId = unidad.JugadorId,
+                    UnidadId = unidad.Id,
+                    Segundos = segundos
+                });
+ 
+            return ok;
+        }
+ 
+        public void VerificarEstado()
+        {
+            Partida.VerificarVictoria();
+            RegistrarResultadoSiTermino();
+        }
+ 
+        // ---------- Ejecución de las acciones (las usan el jugador local y el oponente) ----------
+ 
+        private bool EjecutarConstruir(Jugador jugador, int x, int y)
         {
             if (Partida.Finalizada) return false;
  
@@ -139,7 +491,7 @@ namespace ImperiosEnGuerra.Controlador
             return true;
         }
  
-        public bool Entrenar(Jugador jugador)
+        private bool EjecutarEntrenar(Jugador jugador, int x, int y)
         {
             if (Partida.Finalizada) return false;
  
@@ -147,11 +499,8 @@ namespace ImperiosEnGuerra.Controlador
                 return Rechazar(jugador.Id, "Entrenar soldado",
                     "comida insuficiente (se necesitan " + Partida.CostoSoldadoComida + ")");
  
-            int x, y;
- 
-            if (!BuscarCeldaLibreCercaDelCentro(jugador, out x, out y))
-                return Rechazar(jugador.Id, "Entrenar soldado",
-                    "no hay espacio libre junto al Centro Urbano");
+            if (!Partida.Mapa.EstaDentro(x, y) || !Partida.Mapa.EstaLibre(x, y))
+                return Rechazar(jugador.Id, "Entrenar soldado", "la celda (" + x + "," + y + ") no está libre");
  
             if (!Juego.ReservarEntrenamiento(jugador.Id, x, y))
                 return Rechazar(jugador.Id, "Entrenar soldado", "no se pudo iniciar el entrenamiento");
@@ -165,7 +514,7 @@ namespace ImperiosEnGuerra.Controlador
             return true;
         }
  
-        public bool Mover(Unidad unidad, int x, int y)
+        private bool EjecutarMover(Unidad unidad, int x, int y)
         {
             if (Partida.Finalizada) return false;
  
@@ -186,15 +535,14 @@ namespace ImperiosEnGuerra.Controlador
             return true;
         }
  
-        // Ataque cuerpo a cuerpo: el atacante debe estar en una celda contigua.
-        public bool AtacarUnidad(Unidad atacante, Unidad objetivo)
+        private bool EjecutarAtaqueUnidad(Unidad atacante, Unidad objetivo, bool verificarRango)
         {
             if (Partida.Finalizada) return false;
  
             if (!atacante.EstaViva() || !objetivo.EstaViva())
                 return Rechazar(atacante.JugadorId, "Ataque", "la unidad no está disponible");
  
-            if (!EnRango(atacante, objetivo.X, objetivo.Y))
+            if (verificarRango && !EnRango(atacante, objetivo.X, objetivo.Y))
                 return Rechazar(atacante.JugadorId, "Ataque",
                     "fuera de rango, acércate a una celda contigua");
  
@@ -211,14 +559,14 @@ namespace ImperiosEnGuerra.Controlador
             return true;
         }
  
-        public bool AtacarEdificio(Unidad atacante, Edificio objetivo)
+        private bool EjecutarAtaqueEdificio(Unidad atacante, Edificio objetivo, bool verificarRango)
         {
             if (Partida.Finalizada) return false;
  
             if (!atacante.EstaViva() || objetivo.EstaDestruido())
                 return Rechazar(atacante.JugadorId, "Ataque", "objetivo no disponible");
  
-            if (!EnRango(atacante, objetivo.X, objetivo.Y))
+            if (verificarRango && !EnRango(atacante, objetivo.X, objetivo.Y))
                 return Rechazar(atacante.JugadorId, "Ataque",
                     "fuera de rango, acércate a una celda contigua");
  
@@ -235,8 +583,7 @@ namespace ImperiosEnGuerra.Controlador
             return true;
         }
  
-        // Recolección en segundo plano: la unidad debe estar sobre una celda con recurso.
-        public bool RecolectarAutomatico(Unidad unidad, int segundos)
+        private bool EjecutarRecolectar(Unidad unidad, int segundos)
         {
             if (Partida.Finalizada) return false;
  
@@ -255,12 +602,6 @@ namespace ImperiosEnGuerra.Controlador
                 " durante " + segundos + " s");
  
             return true;
-        }
- 
-        public void VerificarEstado()
-        {
-            Partida.VerificarVictoria();
-            RegistrarResultadoSiTermino();
         }
  
         // ---------- Fin de la partida ----------
@@ -291,13 +632,17 @@ namespace ImperiosEnGuerra.Controlador
  
             sb.AppendLine("RESULTADO FINAL - IMPERIOS EN GUERRA");
             sb.AppendLine("Fecha: " + DateTime.Now);
-            sb.AppendLine("Ganador: " + (ganador != null ? ganador.Nombre : "Empate"));
+ 
+            if (ConexionPerdida)
+                sb.AppendLine("Ganador: sin ganador (partida interrumpida por pérdida de conexión)");
+            else
+                sb.AppendLine("Ganador: " + (ganador != null ? ganador.Nombre : "Empate"));
  
             foreach (Jugador j in new[] { Partida.Jugador1, Partida.Jugador2 })
             {
                 string motivo = Partida.MotivoDerrota(j);
  
-                if (motivo != null)
+                if (motivo != null && !ConexionPerdida)
                     sb.AppendLine(j.Nombre + " perdió porque " + motivo + ".");
             }
  

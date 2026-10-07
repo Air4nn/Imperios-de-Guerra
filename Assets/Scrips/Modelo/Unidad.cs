@@ -10,10 +10,12 @@ namespace ImperiosEnGuerra.Modelo
         public int Y { get; set; }
         public int JugadorId { get; set; }
 
+        public int VidaMaxima { get; set; }
+
         public Unidad(int id, TipoUnidad tipo, int vida, int ataque, int x, int y, int jugadorId)
         {
             Id = id; Tipo = tipo; Vida = vida; Ataque = ataque;
-            X = x; Y = y; JugadorId = jugadorId;
+            X = x; Y = y; JugadorId = jugadorId; VidaMaxima = vida;
         }
 
         public bool EstaViva() => Vida > 0;

@@ -20,6 +20,7 @@ namespace ImperiosEnGuerra.Servicios
         public const double SegundosConstruccion = 5;
         public const double SegundosEntrenamiento = 4;
         public const int MillisPorPaso = 400;
+        public const int SegundosRecoleccion = 5;
  
         private readonly JuegoService juego;
         private readonly Action<Action> alHiloPrincipal;

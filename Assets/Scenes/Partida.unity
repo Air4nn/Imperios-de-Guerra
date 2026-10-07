@@ -861,6 +861,8 @@ GameObject:
   - component: {fileID: 1459253292}
   - component: {fileID: 1459253291}
   - component: {fileID: 1459253295}
+  - component: {fileID: 1459253296}
+  - component: {fileID: 1459253297}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -964,6 +966,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 22644c7692a8f7c47b3b94663bfb1987, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ImperiosEnGuerra.Vista.PanelAcciones
+--- !u!114 &1459253296
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1459253290}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb7c715e7edf7014fb501c82de6bc8b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ImperiosEnGuerra.Vista.BarraRecursos
+--- !u!114 &1459253297
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1459253290}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b16d6297fa5cdb7429a425f0e72f7b0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ImperiosEnGuerra.Vista.MenuRed
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using ImperiosEnGuerra.Modelo;
+using ImperiosEnGuerra.Servicios;
  
 namespace ImperiosEnGuerra.Vista
 {
@@ -144,7 +145,7 @@ namespace ImperiosEnGuerra.Vista
                 return;
             }
  
-            GameManager.Instancia.Controller.RecolectarAutomatico(Seleccionada, 10);
+            GameManager.Instancia.Controller.RecolectarAutomatico(Seleccionada, ConcurrenciaService.SegundosRecoleccion);
         }
  
         // ---------- Auxiliares ----------

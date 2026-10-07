@@ -6,7 +6,16 @@ namespace ImperiosEnGuerra.Vista
 {
     public class MapaView : MonoBehaviour
     {
+        // Altura de la cara superior de las celdas: ahí se apoyan unidades y edificios.
+        private const float AlturaSuelo = 0.075f;
+ 
         public float tamanoCelda = 1f;
+ 
+        private class RecursoVisual
+        {
+            public Celda Celda;
+            public GameObject Objeto;
+        }
  
         private Dictionary<int, GameObject> unidadesVisuales =
             new Dictionary<int, GameObject>();
@@ -14,11 +23,13 @@ namespace ImperiosEnGuerra.Vista
         private Dictionary<int, GameObject> edificiosVisuales =
             new Dictionary<int, GameObject>();
  
+        private readonly List<RecursoVisual> recursosVisuales = new List<RecursoVisual>();
+ 
         private InteraccionMapa interaccion;
  
         private void Start()
         {
-            interaccion = FindFirstObjectByType<InteraccionMapa>();
+            interaccion = FindAnyObjectByType<InteraccionMapa>();
             DibujarMapa();
         }
  
@@ -26,6 +37,7 @@ namespace ImperiosEnGuerra.Vista
         {
             ActualizarUnidades();
             ActualizarEdificios();
+            ActualizarRecursos();
         }
  
         private Color ColorDeJugador(int jugadorId)
@@ -68,16 +80,33 @@ namespace ImperiosEnGuerra.Vista
                     Renderer r = celda.GetComponent<Renderer>();
                     Celda datos = partida.Mapa.Celdas[x, y];
  
-                    if (datos.Recurso == TipoRecurso.Oro)
-                        r.material.color = Color.yellow;
-                    else if (datos.Recurso == TipoRecurso.Madera)
-                        r.material.color = new Color(0.4f, 0.25f, 0.1f);
-                    else if (datos.Recurso == TipoRecurso.Comida)
-                        r.material.color = Color.green;
+                    if (datos.Recurso != null)
+                    {
+                        // Celda con textura propia del recurso y decoración en 3D encima.
+                        r.sharedMaterial = FabricaVisual.MaterialRecurso(datos.Recurso.Value);
+ 
+                        GameObject decoracion =
+                            FabricaVisual.CrearDecoracionRecurso(datos.Recurso.Value);
+ 
+                        decoracion.name = "Recurso_" + x + "_" + y;
+ 
+                        decoracion.transform.position =
+                            new Vector3(
+                                x * tamanoCelda,
+                                AlturaSuelo,
+                                y * tamanoCelda
+                            );
+ 
+                        recursosVisuales.Add(new RecursoVisual
+                        {
+                            Celda = datos,
+                            Objeto = decoracion
+                        });
+                    }
                     else
-                        r.material.color = (x + y) % 2 == 0
-                            ? new Color(0.35f, 0.55f, 0.3f)
-                            : new Color(0.3f, 0.5f, 0.25f);
+                    {
+                        r.sharedMaterial = FabricaVisual.MaterialTerreno(x, y);
+                    }
                 }
             }
  
@@ -123,31 +152,27 @@ namespace ImperiosEnGuerra.Vista
                 return;
  
             GameObject objeto =
-                GameObject.CreatePrimitive(
-                    PrimitiveType.Capsule
-                );
+                FabricaVisual.CrearSoldado(ColorDeJugador(unidad.JugadorId));
  
             objeto.name = "Unidad_" + unidad.Id;
  
             objeto.transform.position =
                 new Vector3(
                     unidad.X,
-                    0.8f,
+                    AlturaSuelo,
                     unidad.Y
                 );
  
-            objeto.transform.localScale =
-                new Vector3(
-                    0.5f,
-                    0.8f,
-                    0.5f
-                );
+            // Al aparecer, mira hacia el campamento enemigo.
+            float sentido = unidad.JugadorId == 1 ? 1f : -1f;
+            objeto.transform.rotation =
+                Quaternion.LookRotation(new Vector3(sentido, 0f, sentido));
  
-            Renderer renderer =
-                objeto.GetComponent<Renderer>();
- 
-            renderer.material.color =
-                ColorDeJugador(unidad.JugadorId);
+            // Barra de vida: solo se ve cuando la unidad está herida.
+            BarraVida.Crear(
+                objeto.transform, 1.12f, 0.7f,
+                unidad.VidaMaxima, () => unidad.Vida,
+                true, new Color(1f, 0.35f, 0.25f));
  
             unidadesVisuales.Add(
                 unidad.Id,
@@ -160,41 +185,31 @@ namespace ImperiosEnGuerra.Vista
             if (edificiosVisuales.ContainsKey(edificio.Id))
                 return;
  
+            Color color = ColorDeJugador(edificio.JugadorId);
+            bool esCasa = edificio.Tipo == TipoEdificio.Casa;
+ 
             GameObject objeto =
-                GameObject.CreatePrimitive(
-                    PrimitiveType.Cube
-                );
+                esCasa
+                    ? FabricaVisual.CrearCasa(color)
+                    : FabricaVisual.CrearCentroUrbano(color);
  
             objeto.name =
                 "Edificio_" + edificio.Id;
  
-            Renderer renderer =
-                objeto.GetComponent<Renderer>();
+            objeto.transform.position =
+                new Vector3(
+                    edificio.X,
+                    AlturaSuelo,
+                    edificio.Y
+                );
  
-            Color color = ColorDeJugador(edificio.JugadorId);
- 
-            if (edificio.Tipo == TipoEdificio.Casa)
-            {
-                // Las casas son mas pequenas y claras que el Centro Urbano.
-                objeto.transform.position =
-                    new Vector3(edificio.X, 0.5f, edificio.Y);
- 
-                objeto.transform.localScale =
-                    new Vector3(0.6f, 0.8f, 0.6f);
- 
-                renderer.material.color =
-                    Color.Lerp(color, Color.white, 0.4f);
-            }
-            else
-            {
-                objeto.transform.position =
-                    new Vector3(edificio.X, 1f, edificio.Y);
- 
-                objeto.transform.localScale =
-                    new Vector3(0.9f, 1.5f, 0.9f);
- 
-                renderer.material.color = color;
-            }
+            // Barra de vida siempre visible sobre los edificios.
+            BarraVida.Crear(
+                objeto.transform,
+                esCasa ? 0.98f : 1.95f,
+                esCasa ? 0.7f : 1.0f,
+                edificio.VidaMaxima, () => edificio.Vida,
+                false, new Color(1f, 0.70f, 0.20f));
  
             edificiosVisuales.Add(
                 edificio.Id,
@@ -227,34 +242,49 @@ namespace ImperiosEnGuerra.Vista
                     unidadesVisuales[unidad.Id];
  
                 // El hilo de movimiento avanza una celda cada 0,4 s;
-                // la vista se desliza suavemente hacia esa celda.
+                // la vista se desliza suavemente hacia esa celda y se orienta hacia ella.
                 Vector3 destino =
                     new Vector3(
                         unidad.X,
-                        0.8f,
+                        AlturaSuelo,
                         unidad.Y
                     );
  
-                objeto.transform.position =
-                    Vector3.MoveTowards(
-                        objeto.transform.position,
-                        destino,
-                        5f * Time.deltaTime
-                    );
+                Vector3 actual = objeto.transform.position;
+                Vector3 direccion = destino - actual;
+                direccion.y = 0f;
  
-                // La unidad seleccionada se ve en amarillo.
+                if (direccion.sqrMagnitude > 0.0004f)
+                {
+                    objeto.transform.position =
+                        Vector3.MoveTowards(
+                            actual,
+                            destino,
+                            5f * Time.deltaTime
+                        );
+ 
+                    objeto.transform.rotation =
+                        Quaternion.Slerp(
+                            objeto.transform.rotation,
+                            Quaternion.LookRotation(direccion),
+                            10f * Time.deltaTime
+                        );
+                }
+ 
+                // La unidad seleccionada muestra un aro amarillo bajo los pies.
                 bool seleccionada =
                     interaccion != null &&
                     interaccion.Seleccionada == unidad;
  
-                objeto.GetComponent<Renderer>().material.color =
-                    seleccionada
-                        ? Color.yellow
-                        : ColorDeJugador(unidad.JugadorId);
+                IndicadorSeleccion indicador =
+                    objeto.GetComponent<IndicadorSeleccion>();
  
-                if (!unidad.EstaViva())
+                if (indicador != null)
+                    indicador.Mostrar(seleccionada);
+ 
+                if (!unidad.EstaViva() && objeto.activeSelf)
                 {
-                    objeto.SetActive(false);
+                    OcultarConUltimoGolpe(objeto);
                 }
             }
         }
@@ -278,8 +308,32 @@ namespace ImperiosEnGuerra.Vista
             {
                 CrearVisualEdificio(edificio);
  
-                edificiosVisuales[edificio.Id]
-                    .SetActive(!edificio.EstaDestruido());
+                GameObject objeto = edificiosVisuales[edificio.Id];
+ 
+                if (edificio.EstaDestruido() && objeto.activeSelf)
+                    OcultarConUltimoGolpe(objeto);
+            }
+        }
+ 
+        // Antes de ocultar un objeto destruido, su barra lee la vida una última vez
+        // para mostrar el daño del golpe final.
+        private void OcultarConUltimoGolpe(GameObject objeto)
+        {
+            BarraVida barra = objeto.GetComponentInChildren<BarraVida>(true);
+ 
+            if (barra != null)
+                barra.Actualizar();
+ 
+            objeto.SetActive(false);
+        }
+ 
+        // Oculta la decoración de un recurso cuando se agota.
+        private void ActualizarRecursos()
+        {
+            foreach (RecursoVisual recurso in recursosVisuales)
+            {
+                if (recurso.Objeto.activeSelf && recurso.Celda.CantidadRecurso <= 0)
+                    recurso.Objeto.SetActive(false);
             }
         }
     }

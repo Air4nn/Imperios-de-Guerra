@@ -37,7 +37,6 @@ Cada jugador podrá:
 * 🏃 Mover unidades.
 * 💥 Atacar unidades enemigas.
 * 🏰 Atacar edificios.
-* 🛡️ Defender su territorio.
 * 🏆 Conseguir la victoria.
 
 ---
@@ -75,6 +74,7 @@ Contiene:
 * 💰 `Recurso`
 * ⚔️ `Unidad`
 * 🏰 `Edificio`
+* 🏷️ `Edificio`
 
 El Modelo no depende de Unity.
 
@@ -86,11 +86,22 @@ Es la parte que el jugador puede ver e interactuar en Unity.
 
 Incluye:
 
-* 🗺️ `MapaView`
-* ⚔️ `UnidadView`
+* 💎 `BarraRecursos`
+* ❤️ `BarraVida`
 * 🏰 `EdificioView`
-* 🖥️ `UIManager`
+* 🏭 `FabricaVisual`
 * 🎮 `GameManager`
+* 🖼️ `IconosUI`
+* 🎯 `IndicadorSeleccion`
+* 🖱️ `InteraccionMapa`
+* 🗺️ `MapaView`
+* 🏆 `MenuFinal`
+* 📶 `MenuRed`
+* 🎛️ `PanelAcciones`
+* ❓ `PanelAyuda`
+* 💬 `TextoFlotante`
+* 🖥️ `UIManager`
+* ⚔️ `UnidadView`
 
 ---
 
@@ -101,9 +112,6 @@ Conecta la interfaz con la lógica del juego.
 Incluye:
 
 * `JuegoController`
-* `UnidadController`
-* `EdificioController`
-* `RecursoController`
 
 ---
 
@@ -143,13 +151,13 @@ Cada jugador posee:
 ### ⚔️ Unidades
 
 * 🗡️ Soldado
-* 🏹 Arquero
+
 
 ### 🏰 Edificios
 
 * 🏯 Centro Urbano
 * 🏠 Casa
-* ⚔️ Cuartel
+
 
 ---
 
@@ -245,7 +253,7 @@ Cuando termina:
 
 # ⚡ Concurrencia
 
-Para cumplir con los requisitos de Programación Avanzada se utilizarán tareas o hilos para procesos como:
+Se utilizaron tareas o hilos para procesos como:
 
 * 💰 Recolección de recursos.
 * 🏗️ Construcción.
@@ -253,7 +261,7 @@ Para cumplir con los requisitos de Programación Avanzada se utilizarán tareas 
 * 🏃 Movimiento.
 * 🌐 Escucha de conexiones.
 
-Se utilizarán mecanismos de sincronización como:
+Se utilizaron mecanismos de sincronización como:
 
 ```csharp
 lock
@@ -344,9 +352,10 @@ ImperiosEnGuerra/
 │   │   ├── 🌐 Red/
 │   │   └── 💾 Datos/
 │   │
-│   ├── 📦 Prefabs/
-│   ├── 🎨 Materials/
-│   └── 🖼️ Sprites/
+│   ├── ⚙️ Settings/
+│   ├── 📝 Text MeshPro/
+│   └── 📦 Resources/
+│   └── 📚 TutorialInfo/
 │
 └── 📄 README.md
 ```
@@ -430,7 +439,7 @@ El proyecto se desarrolla progresivamente:
 
 # 🧪 Pruebas
 
-Antes de la entrega se comprobará:
+Se comprobo lo siguiente:
 
 | 🧪 Área         | ✅ Pruebas                                   |
 | --------------- | ------------------------------------------- |
@@ -444,25 +453,8 @@ Antes de la entrega se comprobará:
 | 🌐 Red          | Conexión y envío de acciones                |
 | 💾 Archivos     | Configuración, logs y resultado             |
 
----
+# 👨‍💻 Autor
 
-# 🎮 Resultado esperado
+* Airann Estiben Yepes Barrera 
 
-Al finalizar, **Imperios en Guerra** permitirá jugar una partida RTS en computador donde dos jugadores podrán:
 
-> 🗺️ Explorar el mapa
-> 💰 Administrar recursos
-> 🏠 Construir
-> ⚔️ Entrenar tropas
-> 🏃 Mover unidades
-> 💥 Atacar
-> 🏰 Defender su ciudad
-> 🏆 Derrotar al enemigo
-
-Todo esto utilizando una arquitectura organizada mediante **MVC**, programación orientada a objetos, concurrencia, archivos y comunicación de red.
-
----
-
-## 🚀 ¡A construir el imperio!
-
-**🧠 Código + 🎮 Unity + ⚡ Concurrencia + 🌐 Red = ⚔️ IMPERIOS EN GUERRA**
